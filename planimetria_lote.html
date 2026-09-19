@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planimetría del lote — forma ajustable</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Librería para exportar a PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>Planimetría del lote</h1>
+        <p>Ajusta la forma, dibuja notas y líneas, y coloca imágenes directamente sobre el plano.</p>
+      </div>
+      <div class="topbar-right">
+        <div class="area-readout">
+          <div class="num" id="areaValue">0</div>
+          <div class="lbl">metros cuadrados (m²)</div>
+        </div>
+        <div class="theme-toggle-row">
+          <label for="darkModeToggle">Modo oscuro</label>
+          <input type="checkbox" id="darkModeToggle">
+        </div>
+      </div>
+    </header>
+
+    <div class="cad-layout">
+
+      <!-- ================= PANEL IZQUIERDO: forma del lote ================= -->
+      <aside class="panel side-panel side-left">
+
+        <details open>
+          <summary>Medidas del lote</summary>
+          <div class="field">
+            <label for="numSides">Número de lados</label>
+            <div class="field-row">
+              <input type="number" id="numSides" min="3" max="20" step="1" value="4">
+              <button class="btn small" id="btnUpdateSides">Actualizar</button>
+            </div>
+          </div>
+          <div id="sideInputsContainer"><!-- Se genera dinámicamente según el número de lados --></div>
+          <button class="btn primary" id="btnApply">Aplicar medidas</button>
+          <button class="btn" id="btnReset">Reiniciar forma</button>
+        </details>
+
+        <details>
+          <summary>Ángulos de las esquinas</summary>
+          <div class="field-row" style="margin-bottom:12px;">
+            <input type="checkbox" id="toggleAngles">
+            <label for="toggleAngles" style="margin:0;">Mostrar ángulos en el plano</label>
+          </div>
+          <div id="angleInputsContainer"><!-- Se genera dinámicamente, un campo por vértice --></div>
+          <div class="hint">Escribe el ángulo deseado en una esquina y presiona Enter o haz clic fuera del campo; el resto del lote se reacomoda para conservar todas las medidas de los lados. En un triángulo el ángulo no se puede forzar: los tres lados ya determinan una única forma.</div>
+        </details>
+
+        <details>
+          <summary>Medidas y cotas</summary>
+          <div class="field">
+            <label for="labelFontSize">Tamaño de letra de las medidas</label>
+            <div class="field-row">
+              <input type="number" id="labelFontSize" min="8" max="36" step="1" value="13">
+              <span>px</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sideStyle">Estilo de las medidas del lote</label>
+            <select id="sideStyle">
+              <option value="texto">Solo texto</option>
+              <option value="cota-flechas" selected>Cota con flechas</option>
+              <option value="cota-marcas">Cota con marcas (arquitectónico)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="lineStyle">Estilo de las líneas</label>
+            <select id="lineStyle">
+              <option value="simple">Línea simple (sin medida)</option>
+              <option value="medida">Línea con medida (texto)</option>
+              <option value="cota-flechas" selected>Cota con flechas</option>
+              <option value="cota-marcas">Cota con marcas (arquitectónico)</option>
+            </select>
+          </div>
+        </details>
+
+      </aside>
+
+      <!-- ================= COLUMNA CENTRAL: lienzo + barra de herramientas ================= -->
+      <div class="canvas-column">
+        <div class="canvas-holder">
+          <canvas id="lote" width="1000" height="620"></canvas>
+        </div>
+
+        <div class="panel bottom-toolbar">
+          <div class="toolbar-group toolbar-modes">
+            <div class="mode-btn active" id="modeMover">Mover</div>
+            <div class="mode-btn" id="modeTexto">Texto</div>
+            <div class="mode-btn" id="modeLinea">Línea</div>
+            <div class="mode-btn" id="modeImagen">Imagen</div>
+          </div>
+
+          <div class="toolbar-sep"></div>
+
+          <div class="toolbar-group">
+            <div class="toolbar-field">
+              <label for="fontSize">Texto</label>
+              <input type="number" id="fontSize" min="10" max="48" step="2" value="16">
+              <span>px</span>
+            </div>
+            <div class="toolbar-field">
+              <label for="textRotation">Rotación</label>
+              <input type="number" id="textRotation" min="-180" max="180" step="1" value="0" disabled>
+              <span>°</span>
+            </div>
+          </div>
+
+          <div class="toolbar-sep"></div>
+
+          <div class="toolbar-group">
+            <button class="btn small" id="btnZoomOut">−</button>
+            <button class="btn small" id="btnZoomFit">Ajustar</button>
+            <button class="btn small" id="btnZoomIn">+</button>
+            <span class="toolbar-readout" id="zoomReadout">Zoom: 100%</span>
+          </div>
+
+          <div class="toolbar-sep"></div>
+
+          <div class="toolbar-group">
+            <button class="btn outline-red small" id="btnDeleteSelected" disabled>Eliminar seleccionado</button>
+            <button class="btn outline-red small" id="btnClearAnnotations">Borrar notas/líneas/imágenes</button>
+          </div>
+
+          <input type="file" id="imageFileInput" accept="image/*" hidden>
+        </div>
+
+        <div class="status-strip" id="hintBox">
+          El polígono siempre cierra exactamente: al mover un punto, los otros se reacomodan para que ningún lado cambie de longitud.
+        </div>
+        <div class="warn" id="warnBox">El contorno se cruza a sí mismo: el área mostrada puede no ser válida.</div>
+      </div>
+
+      <!-- ================= PANEL DERECHO: información y datos ================= -->
+      <aside class="panel side-panel side-right">
+
+        <details open>
+          <summary>Resumen</summary>
+          <div class="stats-row" id="statsRow"></div>
+        </details>
+
+        <details open>
+          <summary>Medidas de los lados</summary>
+          <div class="sides" id="sidesReadout"></div>
+        </details>
+
+        <details>
+          <summary>Coordenadas de los vértices</summary>
+          <table class="coords" id="coordsTable"></table>
+        </details>
+
+        <details>
+          <summary>Vista: zoom y desplazamiento</summary>
+          <div class="hint">Rueda del mouse para acercar/alejar; arrastra un área vacía del plano para desplazarte. En móvil: pellizca con dos dedos para hacer zoom. Los controles de zoom están en la barra bajo el plano.</div>
+        </details>
+
+        <details>
+          <summary>Información del lote y ubicación</summary>
+          <div class="field">
+            <label for="lotDireccion">Dirección / nombre del predio</label>
+            <input type="text" id="lotDireccion" placeholder="Ej: Vereda El Progreso, lote 4">
+          </div>
+          <div class="field">
+            <label for="lotMunicipio">Municipio / Departamento</label>
+            <input type="text" id="lotMunicipio" placeholder="Ej: Turbaco, Bolívar">
+          </div>
+          <div class="field">
+            <label for="lotMatricula">Matrícula inmobiliaria</label>
+            <input type="text" id="lotMatricula" placeholder="Ej: 062-12345">
+          </div>
+          <div class="field">
+            <label for="lotPropietario">Propietario</label>
+            <input type="text" id="lotPropietario" placeholder="Nombre del propietario">
+          </div>
+          <div class="field">
+            <label for="lotObservaciones">Observaciones</label>
+            <input type="text" id="lotObservaciones" placeholder="Notas adicionales">
+          </div>
+          <div class="field">
+            <label>Coordenadas (Google Maps)</label>
+            <div class="latlng-row">
+              <input type="number" id="lotLat" step="0.000001" placeholder="Latitud">
+              <input type="number" id="lotLng" step="0.000001" placeholder="Longitud">
+            </div>
+          </div>
+          <div class="field">
+            <label for="lotMapsLink">Enlace de Google Maps (opcional)</label>
+            <input type="text" id="lotMapsLink" placeholder="https://maps.google.com/...">
+          </div>
+          <button class="btn" id="btnOpenMaps">Abrir ubicación en Google Maps</button>
+        </details>
+
+        <details>
+          <summary>Imagen de fondo</summary>
+          <input type="file" id="bgFileInput" accept="image/*" hidden>
+          <button class="btn" id="btnAddBackground">Cargar imagen de fondo</button>
+          <div class="field" style="margin-top:8px;">
+            <label for="bgScale">Escala del fondo</label>
+            <input type="range" id="bgScale" min="0.1" max="5" step="0.05" value="1" disabled>
+          </div>
+          <button class="btn outline-red" id="btnRemoveBackground" disabled>Quitar imagen de fondo</button>
+        </details>
+
+        <details open>
+          <summary>Exportar</summary>
+          <button class="btn" id="btnSave">Guardar imagen (PNG)</button>
+          <button class="btn" id="btnSavePDF">Guardar como PDF</button>
+        </details>
+
+      </aside>
+
+    </div>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
